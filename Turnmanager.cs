@@ -9,6 +9,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using System.Reflection;
 using System.Runtime;
+using System.Net.Http.Headers;
+
 public class Turnmanager : MonoBehaviour
 {
     private Player player;
@@ -136,10 +138,6 @@ public class Turnmanager : MonoBehaviour
 
             Ship ship = ships[i];
 
-            if (ship.GetComponent<Ship>() is TankClass)
-            {
-                print(ship.GetComponent<Ship>().side);
-            }
 
 
             int state = Random.Range(0, 10);
@@ -151,9 +149,7 @@ public class Turnmanager : MonoBehaviour
             else
             {
                 selectStateAttack(ship.gameObject);
-            }
-            //yield return new WaitForSeconds(1);
-            
+            }            
         }
 
         print("state selection for computer complete");
@@ -171,17 +167,27 @@ public class Turnmanager : MonoBehaviour
 
         for (int i = 0; i < playerFleet.Count; i++)
         {
-            var ship = playerFleet.ElementAt(i).Value;
+            //var ship = playerFleet.ElementAt(i).Value;
+            List<Ship> pfleet = player.hangar.GetshipList(); 
+            Ship ship = pfleet[i];
             Ship _ship = ship.GetComponent<Ship>();
+            _ship.AddTargets(computer.hangar.GetFleetList());
+
 
             //check if the ship to select a target for is the swarm class, if so skip to the next player ship
             if (_ship is SwarmClass)
             {
-                _ship.SetTarget(computer.hangar.GetFleet());
+                List<string> t = new List<string>();
+                foreach (Ship s in computer.hangar.GetshipList())
+                {
+                    t.Add(s.name);
+                }
+                _ship.SelectTargets(t);
+
                 i++;
-                ship = playerFleet.ElementAt(i).Value;
-                _ship = ship.GetComponent<Ship>();
+                ship = pfleet[i];
             }
+
             
 
             attacking = checkAttack(computerFleet);
@@ -210,14 +216,15 @@ public class Turnmanager : MonoBehaviour
                     //create buttons for each targetable ship
                     foreach (KeyValuePair<string, GameObject> element in computerFleet)
                     {
-                        var _targetShip = computerFleet.ElementAt<KeyValuePair<string, GameObject>>(count).Value;
+                        var _targetShip = computerFleet.ElementAt(count).Value;
+                        List<string> targets = new List<string>();
+                        targets.Add(_targetShip.name);
                         Ship _tship = _targetShip.GetComponent<Ship>();
-                        print("selecting target for: " + ship.name + " " + _ship.side);
-                        text.text = "which ship would you like " + ship.name + " to attack?";
+
+                        print("selecting target for: " + _ship.name + " " + _ship.side);
+                        text.text = "which ship would you like " + _ship.name + " to attack?";
 
                         Button button = targetButtons[count].GetComponent<Button>();
-                        //to do: make logic for defending ships and for stealth ships to skip this logic
-
 
 
                         //activate the button
@@ -227,22 +234,20 @@ public class Turnmanager : MonoBehaviour
                         //add a listener to this button and a targetable ship
 
                         //targetShip = computerShips.ElementAt<KeyValuePair<string, GameObject>>(1).Value;
-                        button.onClick.AddListener(delegate () { selectTarget(ship, _targetShip); });
+                        button.onClick.AddListener(delegate () { selectTarget(ship.gameObject, targets); });
 
-                        //Text _text = button.GetComponent<Text>();
-                        //_text.text = ship.name;
+                        Text _text = button.gameObject.GetComponentInChildren<Text>();
+                        _text.text = _targetShip.name;
                         
 
                         count++;
                     }
-                    while (_ship.GetTarget() == null)
                     {
                         yield return null;
                     }
                     attButton.GetComponent<Button>().onClick.RemoveAllListeners();
                     defButton.GetComponent<Button>().onClick.RemoveAllListeners();
                     healButton.GetComponent<Button>().onClick.RemoveAllListeners();
-
 
                     deactivateButtons();
                     yield return new WaitForSeconds(1);
@@ -254,10 +259,14 @@ public class Turnmanager : MonoBehaviour
                     //make target buttons for each targetable ship
                     for (int j = 0; j < defending.Count; j++)
                     {
-                        print("selecting target for: " + ship.name + " " + _ship.side);
-                        text.text = "which ship would you like " + ship.name + " to attack?";
-
                         GameObject _targetShip = defending[j];
+                        List<string> targets = new List<string>();
+                        targets.Add(_targetShip.name);
+                        Ship _tship = _targetShip.GetComponent<Ship>();
+
+
+                        print("selecting target for: " + _ship.name + " " + _ship.side);
+                        text.text = "which ship would you like " + _ship.name + " to attack?";
 
                         Button button = targetButtons[j].GetComponent<Button>();
 
@@ -266,24 +275,24 @@ public class Turnmanager : MonoBehaviour
 
                         //add a listener to this button and a targetable ship
 
-                        button.onClick.AddListener(delegate () { selectTarget(ship, _targetShip); });
+                        button.onClick.AddListener(delegate () { selectTarget(_ship.gameObject, targets); });
 
 
-                        //Text _text = button.GetComponent<Text>();
-                        //_text.text = ship.name;
+                        Text _text = button.gameObject.GetComponentInChildren<Text>();
+                        _text.text = _targetShip.name;
 
                         
                     }
-                    while (_ship.GetTarget() == null)
+                    while (_ship.GetSelectedTargets().Count < 1)
                     {
                         yield return null;
                     }
-                    deactivateButtons();
-                    yield return new WaitForSeconds(1);
                     attButton.GetComponent<Button>().onClick.RemoveAllListeners();
                     defButton.GetComponent<Button>().onClick.RemoveAllListeners();
                     healButton.GetComponent<Button>().onClick.RemoveAllListeners();
 
+                    deactivateButtons();
+                    yield return new WaitForSeconds(1);
                 }
                 
             }
@@ -306,11 +315,17 @@ public class Turnmanager : MonoBehaviour
 
                 var ship = computerFleet.ElementAt(i).Value;
                 Ship _ship = ship.GetComponent<Ship>();
+                _ship.AddTargets(player.hangar.GetFleetList());
 
                 //check if the ship to select a target for is a swarm class ship
                 if (_ship is SwarmClass)
                 {
-                    _ship.SetTarget(computer.hangar.GetFleet());
+                    List<string> t = new List<string>();
+                    foreach (Ship s in player.hangar.GetshipList())
+                    {
+                        t.Add(s.name);
+                    }
+                    _ship.SelectTargets(t);
                     i++;
                 }
 
@@ -321,7 +336,9 @@ public class Turnmanager : MonoBehaviour
                 if (_ship.GetState() != 2)
                 {
                     //select a random target from the list of attacking ships?
-                    selectTarget(ship, attacking[Random.Range(0, attacking.Count)]);
+                    List<string> t = new List<string>();
+                    t.Add(attacking[Random.Range(0, attacking.Count)].name);
+                    selectTarget(ship, t);
                 }
             }
 
@@ -340,10 +357,13 @@ public class Turnmanager : MonoBehaviour
                 //check if the ship to select a target for is a swarm class ship
                 if (_ship is SwarmClass)
                 {
-                    _ship.SetTarget(computer.hangar.GetFleet());
+                    List<string> t = new List<string>();
+                    foreach (Ship s in player.hangar.GetshipList())
+                    {
+                        t.Add(s.name);
+                    }
+                    _ship.SelectTargets(t);
                     i++;
-                    ship = computerFleet.ElementAt(i).Value;
-                    _ship = ship.GetComponent<Ship>();
                 }
 
                  
@@ -352,7 +372,9 @@ public class Turnmanager : MonoBehaviour
                 if (_ship.GetState() != 2)
                 {
                     //select a random target from the list of attacking ships?
-                    selectTarget(ship, defending[Random.Range(0, defending.Count + 1)]);
+                    List<string> t = new List<string>();
+                    t.Add(attacking[Random.Range(0, attacking.Count)].name);
+                    selectTarget(ship, t);
                 }
             }
 
@@ -384,8 +406,6 @@ public class Turnmanager : MonoBehaviour
         foreach(GameObject ship in attackOrder)
         {
             Ship _ship = ship.GetComponent<Ship>();
-            var targetShips = _ship.GetTarget();
-
             _ship.attack();
 
             if (!_ship.HasAttacked())
@@ -395,13 +415,12 @@ public class Turnmanager : MonoBehaviour
 
             if (_ship is SwarmClass)
             {
-                for (int i = 0; i < _ship.Targets.Count; i++)
+                for (int i = 0; i < _ship.GetTargets().Count; i++)
                 {
-                    Ship targetShip = _ship._GetTarget().ElementAt(i).Value.GetComponent<Ship>();
+                    Ship targetShip = _ship.GetTargets().ElementAt(i).Value.GetComponent<Ship>();
                     if (targetShip.hasDied())
                     {
                         player.hangar.removeShipfromFleet(targetShip.gameObject);
-                        
                     }
                 }
             }
@@ -421,9 +440,21 @@ public class Turnmanager : MonoBehaviour
 
     IEnumerator reselectTarget(GameObject ship)
     {
+        List<GameObject> attacking = new List<GameObject>(0);
+        List<GameObject> defending = new List<GameObject>(0);
+
         Ship _ship = ship.GetComponent<Ship>();
-        List<GameObject> attacking = checkAttack(computerFleet);
-        List<GameObject> defending = checkDefence(computerFleet);
+        if (_ship.side == 1)
+        {
+            attacking = checkAttack(computerFleet);
+            defending = checkDefence(computerFleet);
+        }
+        else if(_ship.side == 2)
+        {
+            attacking = checkAttack(playerFleet);
+            defending = checkDefence(playerFleet);
+        }
+        
 
         //if the ship is on the player side
         if (_ship.side == 1)
@@ -434,11 +465,12 @@ public class Turnmanager : MonoBehaviour
                 //create buttons for each targetable ship
                 foreach (KeyValuePair<string, GameObject> element in computerFleet)
                 {
-                    GameObject _targetShip = computerFleet.ElementAt<KeyValuePair<string, GameObject>>(count).Value;
+                    GameObject _targetShip = defending[count];
+                    List<string> targets = new List<string>();
+                    targets.Add(_targetShip.name);
                     Ship _tship = _targetShip.GetComponent<Ship>();
 
                     Button button = targetButtons[count].GetComponent<Button>();
-                    //to do: make logic for defending ships and for stealth ships to skip this logic
 
 
 
@@ -447,17 +479,12 @@ public class Turnmanager : MonoBehaviour
 
 
                     //add a listener to this button and a targetable ship
-
-                    //targetShip = computerShips.ElementAt<KeyValuePair<string, GameObject>>(1).Value;
-                    button.onClick.AddListener(delegate () { selectTarget(ship, _targetShip); });
-
-                    //Text _text = button.GetComponent<Text>();
-                    //_text.text = ship.name;
+                    button.onClick.AddListener(delegate () { selectTarget(ship, targets); });
 
 
                     count++;
                 }
-                while (_ship.GetTarget() == null)
+                while (_ship.GetTargets().Count < 1)
                 {
                     yield return null;
                 }
@@ -473,6 +500,9 @@ public class Turnmanager : MonoBehaviour
                 for (int j = 0; j < defending.Count; j++)
                 {
                     GameObject _targetShip = defending[j];
+                    List<string> targets = new List<string>();
+                    targets.Add(_targetShip.name);
+                    Ship _tship = _targetShip.GetComponent<Ship>();
 
                     Button button = targetButtons[j].GetComponent<Button>();
 
@@ -481,7 +511,7 @@ public class Turnmanager : MonoBehaviour
 
                     //add a listener to this button and a targetable ship
 
-                    button.onClick.AddListener(delegate () { selectTarget(ship, _targetShip); });
+                    button.onClick.AddListener(delegate () { selectTarget(ship, targets); });
 
 
                     //Text _text = button.GetComponent<Text>();
@@ -489,7 +519,7 @@ public class Turnmanager : MonoBehaviour
 
 
                 }
-                while (_ship.GetTarget() == null)
+                while (_ship.GetTargets().Count < 1)
                 {
                     yield return null;
                 }
@@ -514,7 +544,9 @@ public class Turnmanager : MonoBehaviour
                     if (_ship.GetState() != 2)
                     {
                         //select a random target from the list of attacking ships?
-                        selectTarget(ship, attacking[Random.Range(0, attacking.Count)]);
+                        List<string> t = new List<string>();
+                        t.Add(attacking[Random.Range(0, attacking.Count)].name);
+                        selectTarget(ship, t);
                     }
                 }
 
@@ -533,7 +565,9 @@ public class Turnmanager : MonoBehaviour
                     if (_ship.GetState() != 2)
                     {
                         //select a random target from the list of attacking ships?
-                        selectTarget(ship, attacking[Random.Range(0, defending.Count)]);
+                        List<string> t = new List<string>();
+                        t.Add(attacking[Random.Range(0, defending.Count)].name);
+                        selectTarget(ship, t);
                     }
                 }
 
@@ -555,7 +589,7 @@ public class Turnmanager : MonoBehaviour
             Ship _s = s.GetComponent<Ship>();
             _s.SetState(1);
             deactivateButtons();
-            print(s.gameObject.name + " " + _s.side + " is on attaack");
+            print(s.gameObject.name + " " + _s.side + " is on attack");
         }
         
     }
@@ -589,14 +623,12 @@ public class Turnmanager : MonoBehaviour
         }
     }
 
-    void selectTarget(GameObject s, GameObject t)
+    void selectTarget(GameObject s, List<string> t)
     {
         Ship ship = s.GetComponent<Ship>(); 
-        Ship target = t.GetComponent<Ship>();
 
-
-        ship.SetTarget(target);
-        print(ship.name + "'s target set to: " + target.name);
+        ship.SelectTargets(t);
+        print(ship.name + "'s target set to: " + ship.GetSelectedTargets()[0]);
     }
 
     List<GameObject> checkAttack(Dictionary<string, GameObject> f)
@@ -656,17 +688,6 @@ public class Turnmanager : MonoBehaviour
             GameObject _button = targetButtons[i];
             _button.SetActive(false);
         }
-    }
-
-    protected void setButtonPos(Vector3 pos)
-    {
-        attButton.transform.position = pos;
-        defButton.transform.position = pos;
-    }
-
-    private void createTargetButton()
-    {
-
     }
     #endregion
 

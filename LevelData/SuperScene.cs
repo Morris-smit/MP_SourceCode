@@ -80,7 +80,7 @@ public class SuperScene : MonoBehaviour
         for (int i = 0; i < pshipsToLoad.Count; i++)
         {
             GameObject ship = Instantiate(pshipsToLoad[i], PShipPos[i]);
-            ship.name = "players " + ship.GetComponent<Ship>() + " " + i;
+            ship.name = "players " + ship.GetComponent<Ship>().GetType() + " " + i;
             ship.GetComponent<Ship>().side = 1;
             p.hangar.AddShipToFleet(ship);
         }

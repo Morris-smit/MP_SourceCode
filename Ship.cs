@@ -6,11 +6,11 @@ using UnityEngine;
 
 public class Ship : MonoBehaviour
 {
-    private GameObject Target;
-    public Dictionary<string, GameObject> Targets;
+    private List<string> selectedTargets;
+    protected Dictionary<string, GameObject> Targets;
 
     //1 is for attack and 2 is for defend and 3 is for heal
-    private int state;
+    protected int state;
 
     //1 is for player ship 2 is for enemy ship
     public int side;
@@ -48,10 +48,7 @@ public class Ship : MonoBehaviour
     {
         return this.state;
     }
-    public void Attack()
-    {
-        print(this.name + " Attacked " + Target + "!");
-    }
+
 
     public int GetSpeed()
     {
@@ -79,23 +76,49 @@ public class Ship : MonoBehaviour
 
     public virtual void attack()
     {
-        Ship tship = Target.GetComponent<Ship>();
+        foreach(string t in selectedTargets)
+        {
+            Ship tship = Targets[t].GetComponent<Ship>();
 
-        if (!tship.hasDied())
-        {
-            print(this.name + " Attacked " + Target);
-            tship.takeDamage(this.attackdamage);
-            hasAttacked = true;
+            if (!tship.hasDied())
+            {
+                print(this.name + " Attacked " + Targets[t]);
+                tship.takeDamage(this.attackdamage);
+                hasAttacked = true;
+            }
+            else
+            {
+                hasAttacked = false;
+            }
         }
-        else
-        {
-            hasAttacked = false;
-        }  
+        
     }
 
-    public virtual void SetTarget(Ship s) 
+    public void AddTargets(List<GameObject> s) 
     {
-        this.Target = s.gameObject;
+        if (Targets == null)
+        {
+            Targets = new Dictionary<string, GameObject>(0);
+        }
+
+
+        Targets.Clear();
+
+        foreach (GameObject ship in s)
+        {
+            Targets.Add(ship.name, ship);
+        }
+
+        
+    }
+
+    public void SelectTargets(List<string> t)
+    {
+        if (selectedTargets == null)
+        {
+            selectedTargets = new List<string>();
+        }
+        selectedTargets = t;
     }
 
     public virtual void SetTarget(Dictionary<string, GameObject> targets)
@@ -107,13 +130,24 @@ public class Ship : MonoBehaviour
     {
         Targets.Clear();
     }
-    public Dictionary<string, GameObject> _GetTarget()
+
+    public Dictionary<string, GameObject> GetTargets()
     {
-        return this.Targets;
+        if (Targets == null)
+        {
+            Targets = new Dictionary<string, GameObject>(0);
+        }
+
+        return Targets;
     }
-    public GameObject GetTarget()
+
+    public List<string> GetSelectedTargets()
     {
-        return Target;
+        if (selectedTargets == null)
+        {
+            selectedTargets = new List<string>();
+        }
+        return selectedTargets;
     }
 
     public bool hasDied()
