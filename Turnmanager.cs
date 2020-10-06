@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Management.Instrumentation;
+//using System.Management.Instrumentation;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -161,6 +161,8 @@ public class Turnmanager : MonoBehaviour
 
     IEnumerator SelectTarget()
     {
+        computerFleet = computer.hangar.GetFleet();
+        playerFleet = player.hangar.GetFleet();
         //player target selection
         List <GameObject> attacking = new List<GameObject>();
         List <GameObject> defending = new List<GameObject>();
@@ -242,6 +244,7 @@ public class Turnmanager : MonoBehaviour
 
                         count++;
                     }
+                    while (_ship.GetSelectedTargets().Count < 1)
                     {
                         yield return null;
                     }
@@ -310,7 +313,7 @@ public class Turnmanager : MonoBehaviour
         {
             
 
-            for (int i = 0; i < attacking.Count; i++)
+            for (int i = 0; i < computerFleet.Count; i++)
             {
 
                 var ship = computerFleet.ElementAt(i).Value;
@@ -387,8 +390,6 @@ public class Turnmanager : MonoBehaviour
 
     IEnumerator ExecuteAttacks()
     {
-        bool attacking = true;
-
         //make a list with the attacking ships
         List<GameObject> plist = new List<GameObject>();
         List<GameObject> clist = new List<GameObject>();
@@ -400,42 +401,50 @@ public class Turnmanager : MonoBehaviour
 
 
         //sort this list based on speed value
-        IEnumerable<GameObject> attackOrder = plist.OrderBy(ship => ship.GetComponent<Ship>().GetSpeed());
+        List<GameObject> attackOrder = plist.OrderByDescending(ship => ship.GetComponent<Ship>().GetSpeed()).ToList();
 
-        int count = 0;
-        foreach(GameObject ship in attackOrder)
+        for (int i = 0; i < attackOrder.Count(); i++)
         {
-            Ship _ship = ship.GetComponent<Ship>();
+            Ship _ship = attackOrder[i].GetComponent<Ship>();
             _ship.attack();
 
-            if (!_ship.HasAttacked())
+            //Ship targetShip = _ship.GetTargets().ElementAt(i).Value.GetComponent<Ship>();
+            if (_ship.GetTargets().Count == 0)
             {
-                StartCoroutine(reselectTarget(ship));
+                StartCoroutine(reselectTarget(_ship.gameObject));
+                _ship.attack();
             }
+
+            
 
             if (_ship is SwarmClass)
             {
-                for (int i = 0; i < _ship.GetTargets().Count; i++)
+                for (int j = 0; j < _ship.GetTargets().Count; j++)
                 {
-                    Ship targetShip = _ship.GetTargets().ElementAt(i).Value.GetComponent<Ship>();
+                    Ship targetShip = _ship.GetTargets().ElementAt(j).Value.GetComponent<Ship>();
                     if (targetShip.hasDied())
                     {
-                        player.hangar.removeShipfromFleet(targetShip.gameObject);
+                        if (targetShip.side == 1)
+                        {
+                            targetShip.Die();
+                        }
+                        else
+                        {
+                            targetShip.Die();
+                        }
+
                     }
                 }
             }
 
             _ship.clearTargets();
-
-            count++;
         }
 
 
-        while (attacking)
-        {
-            yield return null;
-        }
-        //to do set attacking to false
+        yield return new WaitForSeconds(2);
+
+
+        StartCoroutine(StartTurn());
     }
 
     IEnumerator reselectTarget(GameObject ship)

@@ -22,6 +22,8 @@ public class Ship : MonoBehaviour
     [SerializeField]
     protected int speed;
 
+    public Hangar hangar;
+
     [SerializeField]
     protected float health;
 
@@ -65,12 +67,12 @@ public class Ship : MonoBehaviour
         if (this.health - amount <= 0)
         {
             print(this.name + " was attacked and got destroyed");
-            //this.die();
+            this.Die();
         }
         else
         {
-            print(this.name + " was attacked and got damaged, remaining health: " + this.health);
             this.health -= amount;
+            print(this.name + " was attacked and got damaged, remaining health: " + this.health);
         }
     }
 
@@ -92,6 +94,12 @@ public class Ship : MonoBehaviour
             }
         }
         
+    }
+
+    public void Die()
+    {
+        hangar.removeShipfromFleet(this.gameObject);
+        this.gameObject.SetActive(false);
     }
 
     public void AddTargets(List<GameObject> s) 
@@ -167,5 +175,10 @@ public class Ship : MonoBehaviour
     public bool HasAttacked()
     {
         return hasAttacked;
+    }
+
+    public void SetHangar(Hangar h)
+    {
+        this.hangar = h;
     }
 }

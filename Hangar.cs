@@ -71,6 +71,7 @@ public class Hangar : MonoBehaviour
         }
 
         fleet.Add(s.name, s);
+        s.GetComponent<Ship>().SetHangar(this);
     }
 
 
