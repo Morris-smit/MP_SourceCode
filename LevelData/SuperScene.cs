@@ -2,16 +2,25 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 public class SuperScene : MonoBehaviour
 {
     protected Turnmanager tm;
 
-    protected Player p;
-    protected EnemyAi c;
+    protected Hangar PlayerHangar;
 
     [SerializeField]
+    protected EnemyAi enemyAI;
+
+
+
+
+
+
+
+
     protected List<GameObject> pShipsToLoad;
     [SerializeField]
     protected List<GameObject> cShipsToLoad;
@@ -19,39 +28,17 @@ public class SuperScene : MonoBehaviour
     protected Transform[] PShipPos;
     protected Transform[] CShipPos;
 
-    [Header("playerships")]
     [SerializeField]
-    protected int playerAttShips;
-    [SerializeField]
-    protected int playerDefShips;
-    [SerializeField]
-    protected int playerHealShips;
-    [SerializeField]
-    protected int playerSwarmShips;
-    [SerializeField]
-    protected int playerStealthShips;
-
-    [Header("computerShips")]
-    [SerializeField]
-    protected int ComputerAttShips;
-    [SerializeField]
-    protected int ComputerDefShips;
-    [SerializeField]
-    protected int ComputersHealShips;
-    [SerializeField]
-    protected int ComputerSwarmShips;
-    [SerializeField]
-    protected int ComputerStealthShips;
+    private EnemyAi.Strategy strategy;
 
 
-    // Start is called before the first frame update
+
     protected void Awake()
-    {
-        p = GameObject.FindObjectOfType<Player>();
-        c = GameObject.FindObjectOfType<EnemyAi>();
+    {        
+        enemyAI = GameObject.FindObjectOfType<EnemyAi>();
 
-        tm = new Turnmanager();
-
+        tm = Object.FindObjectOfType<Turnmanager>();
+        enemyAI.strategy = this.strategy;
         #region shippositions
         PShipPos = new Transform[5];
         CShipPos = new Transform[5];
@@ -60,50 +47,62 @@ public class SuperScene : MonoBehaviour
         GameObject[] playerShipPositions = GameObject.FindGameObjectsWithTag("PlayerShipPositions");
         GameObject[] computerShipPositions = GameObject.FindGameObjectsWithTag("ComputerShipPositions");
 
-        //get the transform.positions from these objet to load the ships from the fleet into the scene
+        //get the transform.positions from these gameobjects to load the ships from the fleet into the scene
         for (int i = 0; i < playerShipPositions.Length; i++)
         {
             PShipPos[i] = playerShipPositions[i].transform;
             CShipPos[i] = computerShipPositions[i].transform;
         }
 
+
         #endregion
 
+        for (int i = 0; i < cShipsToLoad.Count; )
+        {
+            GameObject shipToAdd = GameObject.Instantiate(cShipsToLoad[i]);
+            shipToAdd.name = "computers " + shipToAdd.GetComponent<Ship>().GetType().ToString() + " " + i.ToString();
+            enemyAI.hangar.AddShipToFleet(shipToAdd);
+            shipToAdd.SetActive(false);
+            i++;
+        }
     }
     
 
     #region ship loading
 
-
-    protected void LoadPlayerShips(List<GameObject> pshipsToLoad)
+    public void LoadPlayerShips()
     {
-        for (int i = 0; i < pshipsToLoad.Count; i++)
+        Hangar _hangar = PersistantDataManager.Instance.GetPlayerHangar();
+        pShipsToLoad = _hangar.GetFleetList();
+        if (_hangar.GetShipList() == null)
         {
-            GameObject ship = Instantiate(pshipsToLoad[i], PShipPos[i]);
-            ship.name = "players " + ship.GetComponent<Ship>().GetType() + " " + i;
-            ship.GetComponent<Ship>().side = 1;
-            p.hangar.AddShipToFleet(ship);
+            print("ship values in fleet are null");
+        }
+        for (int i = 0; i < pShipsToLoad.Count; i++)
+        {
+            Debug.Log("Ship to load is: " + pShipsToLoad[i].name);
+            pShipsToLoad[i].SetActive(true);
+            pShipsToLoad[i].gameObject.transform.position = PShipPos[i].position;
+            pShipsToLoad[i].gameObject.transform.rotation = PShipPos[i].rotation;
+            GameObject ship = pShipsToLoad[i];
+            ship.GetComponent<Ship>().Side = 1;
         }
     }
-    protected void LoadComputerShips(List<GameObject> cshipsToLoad)
+    public void LoadComputerShips()
     {
-        for (int i = 0; i < cshipsToLoad.Count; i++)
+        List<GameObject> cShipList = enemyAI.hangar.GetFleetList();
+        for (int i = 0; i < cShipList.Count; i++)
         {
-            GameObject ship = Instantiate(cshipsToLoad[i], CShipPos[i]);
-            ship.name = "computers " + ship.GetComponent<Ship>().GetType() + " " + i;
-            ship.GetComponent<Ship>().side = 2;
-            c.hangar.AddShipToFleet(ship);
+            Debug.Log("Ship to load is: " + cShipList[i].name);
+            cShipList[i].SetActive(true);
+            cShipList[i].gameObject.transform.position = CShipPos[i].position;
+            cShipList[i].gameObject.transform.rotation = CShipPos[i].rotation;
+
+            GameObject ship = cShipList[i];
+            ship.GetComponent<Ship>().Side = 2;   
         }
     }
 
 
     #endregion
-
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
-
-
 }

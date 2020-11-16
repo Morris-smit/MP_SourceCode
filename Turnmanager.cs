@@ -2,18 +2,18 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-//using System.Management.Instrumentation;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using System.Reflection;
 using System.Runtime;
-using System.Net.Http.Headers;
+using UnityEngine.Events;
+using System.Diagnostics;
 
 public class Turnmanager : MonoBehaviour
 {
-    private Player player;
+    private Hangar playerHangar;
     private EnemyAi computer;
  
 
@@ -23,106 +23,126 @@ public class Turnmanager : MonoBehaviour
     [SerializeField]
     private SuperScene scene;
 
-    [SerializeField]
-    private GameObject defButton;
-    [SerializeField]
-    private GameObject attButton;
-    [SerializeField]
-    private GameObject healButton;
-
 
     [SerializeField]
-    private GameObject target0Button;
+    private GameObject UI;
+
     [SerializeField]
-    private GameObject target1Button;
+    private DynamicButtonManager DBM;
+
     [SerializeField]
-    private GameObject target2Button;
+    private SceneManagement SCM;
 
-    private List<GameObject> targetButtons;
+    public UnityEvent onShipSelectionComplete;
 
 
+    private GameObject HealthBarPrefab;
+
+    private Canvas canvas;
 
     [SerializeField]
     private Text text;
 
     void Start()
     {
-        playerFleet = player.hangar.GetFleet();
+        canvas = FindObjectOfType<Canvas>();
+        HealthBarPrefab = Resources.Load("Prefabs/HealthBar") as GameObject;
+
+
+        SCM = new SceneManagement();
+        scene = FindObjectOfType<SuperScene>();
+        computer = FindObjectOfType<EnemyAi>();
+
+        scene.LoadComputerShips();
+        scene.LoadPlayerShips();
+
+        this.playerHangar = PersistantDataManager.Instance.GetPlayerHangar();
+
+        makeHealthBars();
+        
+        
+       
+
+        playerFleet = playerHangar.GetFleet();
         computerFleet = computer.hangar.GetFleet();
 
+        DBM.createStateSelectionUIElement();
 
+        for (int i = 0; i < playerFleet.Count; i++)
+        {
+            print("creating target buttons and state buttons for " + playerFleet.ElementAt(i).Value.name);
+            DBM.createTargetButton(playerFleet.ElementAt(i).Value);
+            playerFleet.ElementAt(i).Value.GetComponent<Ship>().Init();
+
+        }
+
+        for (int i = 0; i < computerFleet.Count; i++)
+        {
+            print("creating target buttons for " + computerFleet.ElementAt(i).Value.name);
+            DBM.createTargetButton(computerFleet.ElementAt(i).Value);
+            computerFleet.ElementAt(i).Value.GetComponent<Ship>().Init();
+        }
+
+        
         StartCoroutine(StartTurn());
         
     }
 
     private void Awake()
     {
-        //find the attack and defend buttons
-        //attButton = GameObject.FindGameObjectWithTag("AttackButton");
-        //defButton = GameObject.FindGameObjectWithTag("DefButton");
-        targetButtons = new List<GameObject>();
-
-        targetButtons.Add(target0Button);
-        targetButtons.Add(target1Button);
-        targetButtons.Add(target2Button);
-
-        deactivateButtons();
-
-        player = FindObjectOfType<Player>();
+        playerHangar = PersistantDataManager.Instance.GetPlayerHangar();
         computer = FindObjectOfType<EnemyAi>();
-
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
     }
 
 
     IEnumerator StartTurn()
     {
         //update fleet
-        playerFleet = player.hangar.GetFleet();
+        playerFleet = playerHangar.GetFleet();
         computerFleet = computer.hangar.GetFleet();
 
         for (int i = 0; i < playerFleet.Count; i++ )
         {
             //TODO: highlight ship for which player has to select action
-            List<Ship> shiplist = player.hangar.GetshipList();
+            List<Ship> shiplist = playerHangar.GetShipList();
             Ship ship = shiplist[i];
             if (ship != null)
             {
-                Ship _ship = ship.GetComponent<Ship>();
-                _ship.SetState(0);
+
+                ship.state = Ship.State.neutral;
+
+
+                DBM.deActivateStateButtons();
+                text.text = "what would you like " + ship.name + " to do?";
                 
-                // TO DO: highlight shipToHighlight
-                text.text = _ship.side + " what would you like " + _ship.name + " to do?";
-                
-                activateButtons();
-                
+
+
                 //add listeners to the butons to select what the ship should to this turn
-                Button ATB = attButton.GetComponent<Button>();
-                ATB.onClick.AddListener(delegate () { selectStateAttack(ship.gameObject); });
-                Button DB = defButton.GetComponent<Button>();
-                DB.onClick.AddListener(delegate () { selectStateDefend(ship.gameObject); });
+                List<GameObject> shipStateButtonList = new List<GameObject>();
 
-                //check if the ship object is a supportclass if so add the heal button
-                if (_ship is SupportClass)
+
+                shipStateButtonList = DBM.getStateButtons();
+
+                shipStateButtonList[0].GetComponent<Button>().onClick.AddListener(delegate () { ship.setState(Ship.State.attack); });
+                shipStateButtonList[1].GetComponent<Button>().onClick.AddListener(delegate () { ship.setState(Ship.State.defend); });
+
+                if (ship is SupportClass)
                 {
-                    healButton.SetActive(true);
-                    Button HB = healButton.GetComponent<Button>();
-                    HB.onClick.AddListener(delegate () { selectStateHeal(ship.gameObject); });
+                    shipStateButtonList[2].GetComponent<Button>().onClick.AddListener(delegate () { ship.setState(Ship.State.heal); });
                 }
+                DBM.setStateSelectionPosition(ship.gameObject.transform.position);
 
+
+                DBM.activateStateButtons(ship);
                 //wait for state selection
-                while (_ship.GetState() == 0)
+                while (ship.state == Ship.State.neutral)
                 {
                     yield return null;
                 }
-                ATB.onClick.RemoveAllListeners();
-                DB.onClick.RemoveAllListeners();
-                deactivateButtons();
+                DBM.deActivateStateButtons();
+                removeListeners();
+
+                
                 text.text = string.Empty;
                 yield return new WaitForSeconds(1);
                 
@@ -130,262 +150,156 @@ public class Turnmanager : MonoBehaviour
             
         }
         print("state selection for player complete");
-        //to do implement minimax
-        for (int i = 0; i < computerFleet.Count; i++ )
+
+        //let the computer choose its states for each ship
+        computer.stateSelection(computer.hangar.GetShipList());
+
+        
+
+        //select targets now
+        List<GameObject> Ships = new List<GameObject>();
+        Ships.AddRange(checkAttack(playerHangar.GetFleet()));
+        Ships.AddRange(checkAttack(computer.hangar.GetFleet()));
+        Ships = Ships.OrderByDescending(ship => ship.GetComponent<Ship>().GetSpeed()).ToList();
+
+        foreach (GameObject s in Ships)
         {
-            //GameObject ship = computerFleet.ElementAt<KeyValuePair<string, GameObject>>(i).Value;
-            List<Ship> ships = computer.hangar.GetshipList();
-
-            Ship ship = ships[i];
-
-
-
-            int state = Random.Range(0, 10);
-            if (state <= 5)
+            Ship _ship = s.GetComponent<Ship>();
+            bool isComputer = false;
+            if (_ship.Side == 2)
             {
-                selectStateDefend(ship.gameObject);
-                
+                isComputer = true;
             }
-            else
+            StartCoroutine(SelectTarget(_ship, isComputer, false));
+            while (_ship.GetSelectedTargets().Count < 1)
             {
-                selectStateAttack(ship.gameObject);
-            }            
+                yield return null;
+            }
+
+            yield return new WaitForSeconds(1);
         }
-
-        print("state selection for computer complete");
-
-        //do attacks now
-        StartCoroutine(SelectTarget()); 
+        print("Starting attacking phase");
+        StartCoroutine(ExecuteAttacks());
     }
 
 
-    IEnumerator SelectTarget()
+    IEnumerator SelectTarget(Ship _ship, bool isComputerShip, bool isReselect)
     {
+        print("selecting target for" + _ship + " " + isComputerShip);
+        if (!isComputerShip)
+        {
+            if (isReselect)
+            {
+                text.text = _ship.name + "'s target died reselect your target";
+            }
+            else if(_ship is SupportClass)
+            {
+                text.text = "which target would you like: " + _ship.name + " to heal?";
+            }
+            else
+            {
+                text.text = "which target would you like: " + _ship.name + " to attack?";
+            }
+            
+        }
         computerFleet = computer.hangar.GetFleet();
-        playerFleet = player.hangar.GetFleet();
-        //player target selection
+        playerFleet = playerHangar.GetFleet();
+
+        //target selection
         List <GameObject> attacking = new List<GameObject>();
+        List <GameObject> aliveTargets = new List<GameObject>();
         List <GameObject> defending = new List<GameObject>();
+        List <GameObject> aliveAllies = new List<GameObject>();
 
-        for (int i = 0; i < playerFleet.Count; i++)
+
+
+
+        if (isComputerShip)
         {
-            //var ship = playerFleet.ElementAt(i).Value;
-            List<Ship> pfleet = player.hangar.GetshipList(); 
-            Ship ship = pfleet[i];
-            Ship _ship = ship.GetComponent<Ship>();
-            _ship.AddTargets(computer.hangar.GetFleetList());
-
-
-            //check if the ship to select a target for is the swarm class, if so skip to the next player ship
-            if (_ship is SwarmClass)
-            {
-                List<string> t = new List<string>();
-                foreach (Ship s in computer.hangar.GetshipList())
-                {
-                    t.Add(s.name);
-                }
-                _ship.SelectTargets(t);
-
-                i++;
-                ship = pfleet[i];
-            }
-
-            
-
-            attacking = checkAttack(computerFleet);
-            defending = checkDefence(computerFleet);
-
-            
-
-            if (_ship.GetState() != 2)
-            {
-                if (_ship is StealthClass)
-                {
-                    attacking = computer.hangar.GetFleetList();
-                }
-                else if (_ship.GetState() == 3)
-                {
-                    attacking = player.hangar.GetFleetList();
-                    computerFleet = player.hangar.GetFleet();
-                }
-
-                //if there are no enemy defending ships
-                if (attacking.Count == computerFleet.Count)
-                {
-                    
-
-                    int count = 0;
-                    //create buttons for each targetable ship
-                    foreach (KeyValuePair<string, GameObject> element in computerFleet)
-                    {
-                        var _targetShip = computerFleet.ElementAt(count).Value;
-                        List<string> targets = new List<string>();
-                        targets.Add(_targetShip.name);
-                        Ship _tship = _targetShip.GetComponent<Ship>();
-
-                        print("selecting target for: " + _ship.name + " " + _ship.side);
-                        text.text = "which ship would you like " + _ship.name + " to attack?";
-
-                        Button button = targetButtons[count].GetComponent<Button>();
-
-
-                        //activate the button
-                        button.gameObject.SetActive(true);
-
-
-                        //add a listener to this button and a targetable ship
-
-                        //targetShip = computerShips.ElementAt<KeyValuePair<string, GameObject>>(1).Value;
-                        button.onClick.AddListener(delegate () { selectTarget(ship.gameObject, targets); });
-
-                        Text _text = button.gameObject.GetComponentInChildren<Text>();
-                        _text.text = _targetShip.name;
-                        
-
-                        count++;
-                    }
-                    while (_ship.GetSelectedTargets().Count < 1)
-                    {
-                        yield return null;
-                    }
-                    attButton.GetComponent<Button>().onClick.RemoveAllListeners();
-                    defButton.GetComponent<Button>().onClick.RemoveAllListeners();
-                    healButton.GetComponent<Button>().onClick.RemoveAllListeners();
-
-                    deactivateButtons();
-                    yield return new WaitForSeconds(1);
-                }
-                else
-                {
-                    //to do: make logic for defending ships and for stealth ships to skip this logic
-
-                    //make target buttons for each targetable ship
-                    for (int j = 0; j < defending.Count; j++)
-                    {
-                        GameObject _targetShip = defending[j];
-                        List<string> targets = new List<string>();
-                        targets.Add(_targetShip.name);
-                        Ship _tship = _targetShip.GetComponent<Ship>();
-
-
-                        print("selecting target for: " + _ship.name + " " + _ship.side);
-                        text.text = "which ship would you like " + _ship.name + " to attack?";
-
-                        Button button = targetButtons[j].GetComponent<Button>();
-
-                        //activate the button
-                        button.gameObject.SetActive(true);
-
-                        //add a listener to this button and a targetable ship
-
-                        button.onClick.AddListener(delegate () { selectTarget(_ship.gameObject, targets); });
-
-
-                        Text _text = button.gameObject.GetComponentInChildren<Text>();
-                        _text.text = _targetShip.name;
-
-                        
-                    }
-                    while (_ship.GetSelectedTargets().Count < 1)
-                    {
-                        yield return null;
-                    }
-                    attButton.GetComponent<Button>().onClick.RemoveAllListeners();
-                    defButton.GetComponent<Button>().onClick.RemoveAllListeners();
-                    healButton.GetComponent<Button>().onClick.RemoveAllListeners();
-
-                    deactivateButtons();
-                    yield return new WaitForSeconds(1);
-                }
-                
-            }
+            attacking = checkAttack(playerFleet);
+            defending = checkDefence(playerFleet);
+            aliveTargets = playerHangar.GetFleetList();
+            aliveAllies = computer.hangar.GetFleetList();
         }
-        
-        //to do implement minimax
-
-        //make the computer select a target
-        attacking = checkAttack(playerFleet);
-        defending = checkDefence(playerFleet);
-
-
-        //if there are no player ships on defence select a target from the list of attacking player ships
-        if (defending.Count <= 0)
-        {
-            
-
-            for (int i = 0; i < computerFleet.Count; i++)
-            {
-
-                var ship = computerFleet.ElementAt(i).Value;
-                Ship _ship = ship.GetComponent<Ship>();
-                _ship.AddTargets(player.hangar.GetFleetList());
-
-                //check if the ship to select a target for is a swarm class ship
-                if (_ship is SwarmClass)
-                {
-                    List<string> t = new List<string>();
-                    foreach (Ship s in player.hangar.GetshipList())
-                    {
-                        t.Add(s.name);
-                    }
-                    _ship.SelectTargets(t);
-                    i++;
-                }
-
-                ship = computerFleet.ElementAt(i).Value;
-                _ship = ship.GetComponent<Ship>();
-
-
-                if (_ship.GetState() != 2)
-                {
-                    //select a random target from the list of attacking ships?
-                    List<string> t = new List<string>();
-                    t.Add(attacking[Random.Range(0, attacking.Count)].name);
-                    selectTarget(ship, t);
-                }
-            }
-
-            print("target selection complete");
-            yield return new WaitForSeconds(2);
-        }
-        //if there are player ships on defence select a random target from the list of defending player ships
         else
         {
-            for (int i = 0; i < defending.Count; i++)
+            attacking = checkAttack(computerFleet);
+            defending = checkDefence(computerFleet);
+            aliveTargets = computer.hangar.GetFleetList();
+            aliveAllies = playerHangar.GetFleetList();
+        }
+
+        if (_ship is SwarmClass || _ship is StealthClass)
+        {
+            _ship.AddTargets(aliveTargets);
+        }
+        else if (_ship.state == Ship.State.heal)
+        {
+            _ship.AddTargets(aliveAllies);
+        }
+        else if(!isComputerShip)
+        {
+            if (defending.Count >= 1)
             {
+                _ship.AddTargets(defending);
+            }
+            else
+            {
+                _ship.AddTargets(attacking);
+            }
+        }
 
-                var ship = defending[i];
-                Ship _ship = ship.GetComponent<Ship>();
+        //get list of possible targets for the ship to select a target for
+        List<Ship> shipTargets = new List<Ship>();
+        foreach (KeyValuePair<string, GameObject> element in _ship.GetTargets())
+        {
+            shipTargets.Add(element.Value.GetComponent<Ship>());
+        }
 
-                //check if the ship to select a target for is a swarm class ship
-                if (_ship is SwarmClass)
+        if (_ship is SwarmClass)
+        {
+            List<string> t = new List<string>();
+            foreach (Ship s in shipTargets)
+            {
+                print("selecting all targets for swarmclass");
+                t.Add(s.name);
+            }
+            _ship.SelectTargets(t);
+        }
+        else
+        {
+
+            //random computer selection
+            if (isComputerShip)
+            {
+                computer.targetSelection(computer.hangar.GetShipList(), playerHangar.GetShipList());
+            }
+            //the logic for activating and deactivating the buttons for each targetable ship
+            else
+            {
+                foreach (Ship s in shipTargets)
                 {
-                    List<string> t = new List<string>();
-                    foreach (Ship s in player.hangar.GetshipList())
-                    {
-                        t.Add(s.name);
-                    }
-                    _ship.SelectTargets(t);
-                    i++;
-                }
-
-                 
-
-
-                if (_ship.GetState() != 2)
-                {
-                    //select a random target from the list of attacking ships?
-                    List<string> t = new List<string>();
-                    t.Add(attacking[Random.Range(0, attacking.Count)].name);
-                    selectTarget(ship, t);
+                    //activate the button for each targetable ship
+                    s.activateButton();
+                    s.setButtonText(s.name);
+                    s.onTargetPress.AddListener(_ship.OnTargetSelectionCallback);
                 }
             }
+            while (_ship.GetSelectedTargets().Count < 1)
+            {
+                yield return null;
+            }
 
-            print("target selection complete");
-            yield return new WaitForSeconds(2);
+            foreach (Ship s in shipTargets)
+            {
+                //deactivate the button for each ship
+                s.deactivateButton();
+                s.onTargetPress.RemoveAllListeners();
+            }
         }
-        
-        StartCoroutine(ExecuteAttacks());
+
+        yield return new WaitForSeconds(1);
+        text.text = string.Empty;
     }
 
     IEnumerator ExecuteAttacks()
@@ -397,6 +311,12 @@ public class Turnmanager : MonoBehaviour
         plist = checkAttack(playerFleet);
         clist = checkAttack(computerFleet);
 
+        List<Ship> cShipList = new List<Ship>();
+        for (int i = 0; i < clist.Count; i++)
+        {
+            cShipList.Add(clist[i].GetComponent<Ship>());
+        }
+
         plist.AddRange(clist);
 
 
@@ -405,17 +325,17 @@ public class Turnmanager : MonoBehaviour
 
         for (int i = 0; i < attackOrder.Count(); i++)
         {
+            bool isComputerShip;
             Ship _ship = attackOrder[i].GetComponent<Ship>();
-            _ship.attack();
 
-            //Ship targetShip = _ship.GetTargets().ElementAt(i).Value.GetComponent<Ship>();
-            if (_ship.GetTargets().Count == 0)
+            if (_ship.Side == 1)
             {
-                StartCoroutine(reselectTarget(_ship.gameObject));
-                _ship.attack();
+                isComputerShip = false;
             }
-
-            
+            else
+            {
+                isComputerShip = true;
+            }
 
             if (_ship is SwarmClass)
             {
@@ -424,222 +344,114 @@ public class Turnmanager : MonoBehaviour
                     Ship targetShip = _ship.GetTargets().ElementAt(j).Value.GetComponent<Ship>();
                     if (targetShip.hasDied())
                     {
-                        if (targetShip.side == 1)
-                        {
-                            targetShip.Die();
-                        }
-                        else
-                        {
-                            targetShip.Die();
-                        }
-
+                        yield return new WaitForSeconds(2);
+                        targetShip.DIE();
                     }
                 }
             }
+            else
+            {
+                for (int j = 0; j < _ship.GetTargets().Count; j++)
+                {
+                    Ship targetShip = _ship.GetTargets().ElementAt(j).Value.GetComponent<Ship>();
+                    if (targetShip.hasDied())
+                    {
+                        targetShip.DIE();
+                        _ship.clearSelectedTargets();
+
+                        if (isComputerShip)
+                        {
+                            if (playerFleet.Count == 0)
+                            {
+                                StartCoroutine(computerWon());
+                            }
+                        }
+                        if (!isComputerShip)
+                        {
+                            if (computerFleet.Count == 0)
+                            {
+                                StartCoroutine(playerWon());
+                            }
+                        }
+
+                        print(_ship.name + "'s target died reselecting target");
+                        StartCoroutine(SelectTarget(_ship, isComputerShip, true));
+
+                        yield return new WaitForSeconds(1);
+                    }
+                }
+            }
+            _ship.attack();
+            yield return new WaitForSeconds(1);
+
+
+
 
             _ship.clearTargets();
         }
+        print("attacking is done checking for victory now");
 
 
         yield return new WaitForSeconds(2);
 
 
-        StartCoroutine(StartTurn());
+        StartCoroutine(checkOnVictory());
     }
 
-    IEnumerator reselectTarget(GameObject ship)
+
+    IEnumerator checkOnVictory()
     {
-        List<GameObject> attacking = new List<GameObject>(0);
-        List<GameObject> defending = new List<GameObject>(0);
-
-        Ship _ship = ship.GetComponent<Ship>();
-        if (_ship.side == 1)
+        print("Check on victory");
+        if (computer.hangar.GetFleetList().Count == 0)
         {
-            attacking = checkAttack(computerFleet);
-            defending = checkDefence(computerFleet);
+            StartCoroutine(playerWon());
         }
-        else if(_ship.side == 2)
+
+        if (playerFleet.Count == 0)
         {
-            attacking = checkAttack(playerFleet);
-            defending = checkDefence(playerFleet);
+            StartCoroutine(computerWon());
         }
-        
 
-        //if the ship is on the player side
-        if (_ship.side == 1)
-        {
-            if (attacking.Count <= 0)
-            {
-                int count = 0;
-                //create buttons for each targetable ship
-                foreach (KeyValuePair<string, GameObject> element in computerFleet)
-                {
-                    GameObject _targetShip = defending[count];
-                    List<string> targets = new List<string>();
-                    targets.Add(_targetShip.name);
-                    Ship _tship = _targetShip.GetComponent<Ship>();
-
-                    Button button = targetButtons[count].GetComponent<Button>();
-
-
-
-                    //activate the button
-                    button.gameObject.SetActive(true);
-
-
-                    //add a listener to this button and a targetable ship
-                    button.onClick.AddListener(delegate () { selectTarget(ship, targets); });
-
-
-                    count++;
-                }
-                while (_ship.GetTargets().Count < 1)
-                {
-                    yield return null;
-                }
-
-                deactivateButtons();
-                yield return new WaitForSeconds(1);
-            }
-            else
-            {
-                //to do: make logic for defending ships and for stealth ships to skip this logic
-
-                //make target buttons for each targetable ship
-                for (int j = 0; j < defending.Count; j++)
-                {
-                    GameObject _targetShip = defending[j];
-                    List<string> targets = new List<string>();
-                    targets.Add(_targetShip.name);
-                    Ship _tship = _targetShip.GetComponent<Ship>();
-
-                    Button button = targetButtons[j].GetComponent<Button>();
-
-                    //activate the button
-                    button.gameObject.SetActive(true);
-
-                    //add a listener to this button and a targetable ship
-
-                    button.onClick.AddListener(delegate () { selectTarget(ship, targets); });
-
-
-                    //Text _text = button.GetComponent<Text>();
-                    //_text.text = ship.name;
-
-
-                }
-                while (_ship.GetTargets().Count < 1)
-                {
-                    yield return null;
-                }
-                deactivateButtons();
-                yield return new WaitForSeconds(1);
-
-            }
-        }
-        //if the ship is of the enemy side
         else
         {
-            defending = checkDefence(playerFleet);
-            attacking = checkAttack(playerFleet);
-            if (defending.Count <= 0)
-            {
-                for (int i = 0; i < computerFleet.Count; i++)
-                {
-                    ship = computerFleet.ElementAt(i).Value;
-                    _ship = ship.GetComponent<Ship>();
-
-
-                    if (_ship.GetState() != 2)
-                    {
-                        //select a random target from the list of attacking ships?
-                        List<string> t = new List<string>();
-                        t.Add(attacking[Random.Range(0, attacking.Count)].name);
-                        selectTarget(ship, t);
-                    }
-                }
-
-                print("target selection complete");
-                yield return new WaitForSeconds(2);
-            }
-            //if there are player ships on defence select a random target from the list of defending player ships
-            else
-            {
-                for (int i = 0; i <= defending.Count; i++)
-                {
-                    ship = computerFleet.ElementAt(i).Value;
-                    _ship = ship.GetComponent<Ship>();
-
-
-                    if (_ship.GetState() != 2)
-                    {
-                        //select a random target from the list of attacking ships?
-                        List<string> t = new List<string>();
-                        t.Add(attacking[Random.Range(0, defending.Count)].name);
-                        selectTarget(ship, t);
-                    }
-                }
-
-                print("target selection complete");
-                yield return new WaitForSeconds(2);
-            }
+            StartCoroutine(StartTurn());
         }
+
+        yield return new WaitForSeconds(2);
+
+
     }
 
+    IEnumerator playerWon()
+    {
+        print("Player Won!");
+        print("Player Won!");
+        print("Player Won!");
+        print("Player Won!");
+        print("Player Won!");
+        text.text = "you won!";
+        PersistantDataManager.Instance.previousGameWinner = PersistantDataManager.PreviousGameWinner.player;
+
+        yield return new WaitForSeconds(2);
+
+        SCM.GoToScene("GalaxyMap");
+    }
+
+    IEnumerator computerWon()
+    {
+        print("Computer Won!");
+        print("Computer Won!");
+        print("Computer Won!");
+        print("Computer Won!");
+        print("Computer Won!");
+        text.text = "you lost";
+        PersistantDataManager.Instance.previousGameWinner = PersistantDataManager.PreviousGameWinner.enemyAI;
+
+        yield return new WaitForSeconds(2);
+
+        SCM.GoToScene("GalaxyMap");
+    }
     #region attack and target selection
-    void selectStateAttack(GameObject s)
-    {
-        if (s == null)
-        {
-            print("no ship found");
-        }
-        else
-        {
-            Ship _s = s.GetComponent<Ship>();
-            _s.SetState(1);
-            deactivateButtons();
-            print(s.gameObject.name + " " + _s.side + " is on attack");
-        }
-        
-    }
-
-    void selectStateDefend(GameObject s)
-    {
-        if (s == null)
-        {
-            print("no ship found");
-        }
-        else
-        {
-            Ship _s = s.GetComponent<Ship>();
-            _s.SetState(2);
-            deactivateButtons();
-            print(s.name + " " + _s.side + " is on defence");
-        }
-    }
-
-    void selectStateHeal(GameObject s)
-    {
-        if (s == null)
-        {
-            print("idk what this is");
-        }
-        else
-        {
-            Ship _s = s.GetComponent<Ship>();
-            _s.SetState(3);
-            deactivateButtons();
-        }
-    }
-
-    void selectTarget(GameObject s, List<string> t)
-    {
-        Ship ship = s.GetComponent<Ship>(); 
-
-        ship.SelectTargets(t);
-        print(ship.name + "'s target set to: " + ship.GetSelectedTargets()[0]);
-    }
-
     List<GameObject> checkAttack(Dictionary<string, GameObject> f)
     {
         List<GameObject> list = new List<GameObject>();
@@ -648,7 +460,7 @@ public class Turnmanager : MonoBehaviour
         {
             Ship ship = f.ElementAt<KeyValuePair<string, GameObject>>(i).Value.GetComponent<Ship>();
 
-            if (ship.GetState() == 1)
+            if (ship.state == Ship.State.attack || ship.state == Ship.State.heal)
             {
                 list.Add(ship.gameObject);
             }
@@ -665,7 +477,7 @@ public class Turnmanager : MonoBehaviour
         {
             Ship ship = f.ElementAt<KeyValuePair<string, GameObject>>(i).Value.GetComponent<Ship>();
 
-            if (ship.GetState() == 2)
+            if (ship.state == Ship.State.defend)
             {
                 list.Add(ship.gameObject);
             }
@@ -676,32 +488,44 @@ public class Turnmanager : MonoBehaviour
 
     #endregion
 
-    #region buttons
-    //activate buttons
-    protected void activateButtons()
-    {
-        attButton.SetActive(true);
-        defButton.SetActive(true);
-        
-    }
-    //deactivate buttons
-    protected void deactivateButtons()
-    {
-        text.text = string.Empty;
-        attButton.SetActive(false);
-        defButton.SetActive(false);
-        healButton.SetActive(false);
+    #region UI
 
-        for (int i = 0; i < targetButtons.Count; i++)
+    private void removeListeners()
+    {
+        List<GameObject> stateBtnList = DBM.getStateButtons();
+        for (int i = 0; i < stateBtnList.Count; i++)
         {
-            GameObject _button = targetButtons[i];
-            _button.SetActive(false);
+            stateBtnList[i].GetComponent<Button>().onClick.RemoveAllListeners();
         }
+    }
+
+
+    //make the healthbars
+    private void makeHealthBars()
+    {
+        List<Ship> shipList = playerHangar.GetShipList();
+        shipList.AddRange(computer.hangar.GetShipList());
+
+        for (int i = 0; i < shipList.Count; i++)
+        {
+            Vector3 posToLoad = shipList[i].gameObject.transform.position;
+            posToLoad += new Vector3(10, 10, 0);
+            
+            GameObject hpBar = Instantiate(HealthBarPrefab, new Vector3(0, 0, 0), Quaternion.identity) as GameObject;
+
+            hpBar.transform.SetParent(canvas.transform);
+            hpBar.transform.position = Camera.main.WorldToScreenPoint(posToLoad);
+            if (posToLoad.y >= 265)
+            {
+                posToLoad -= new Vector3(0, -25, 0);
+            }
+
+            shipList[i].hpSlider = hpBar.GetComponent<Slider>();
+        }
+
     }
     #endregion
 
 
 
 }
-
-

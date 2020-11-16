@@ -2,13 +2,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Mars : SuperScene
+public class Jupiter : SuperScene
 {
     // Start is called before the first frame update
     void Start()
     {
-        
-    }
 
-    
+    }
 }

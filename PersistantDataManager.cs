@@ -6,14 +6,24 @@ public class PersistantDataManager : MonoBehaviour
 {
     public static PersistantDataManager Instance;
 
-    public int currentGame;
-    public int previousGame;
+    public int playerGame;
+    public int enemyGame;
 
     public static Player player;
     public static GameObject playerGo;
 
     [SerializeField]
     private GameObject playerPrefab;
+
+    public enum PreviousGameWinner
+    {
+        player,
+        enemyAI,
+        neutralAI,
+        none
+    }
+
+    public PreviousGameWinner previousGameWinner;
 
 
     [SerializeField]
@@ -28,7 +38,6 @@ public class PersistantDataManager : MonoBehaviour
 
             Instance = this;
             playerGo = GameObject.Instantiate(playerPrefab);
-            //playerGo.AddComponent<Player>();
             player = playerGo.GetComponent<Player>();
 
             DontDestroyOnLoad(player);
@@ -38,7 +47,7 @@ public class PersistantDataManager : MonoBehaviour
         else
         {
             Destroy(gameObject);
-            Destroy(player);
+            //Destroy(player);
         }
 
         if (playerGo.GetComponent<Player>().hangar.GetHangar().Count == 0)
@@ -57,6 +66,7 @@ public class PersistantDataManager : MonoBehaviour
             Ship ship = ShipOBj.GetComponent<Ship>();
             ship.name = ship.gameObject.name;
             ship.InitializeStats();
+            //ship.hangar = GetPlayerHangar();
             player.hangar.AddShipToHangar(ShipOBj);
         }
     }

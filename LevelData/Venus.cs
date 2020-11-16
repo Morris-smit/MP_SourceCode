@@ -10,9 +10,4 @@ public class Venus : SuperScene
         
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }

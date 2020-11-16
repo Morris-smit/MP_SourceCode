@@ -8,8 +8,8 @@ public class DevScene : SuperScene
     // Start is called before the first frame update
     void Start()
     {
-        this.LoadPlayerShips(pShipsToLoad);
-        this.LoadComputerShips(cShipsToLoad);
+        this.PlayerHangar = PersistantDataManager.Instance.GetPlayerHangar();
+        enemyAI = FindObjectOfType<EnemyAi>();
     }
 
     // Update is called once per frame

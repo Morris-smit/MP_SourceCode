@@ -2,20 +2,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class TankClass : Ship
+public class StealthClass : Ship
 {
     // Start is called before the first frame update
     void Start()
     {
-        this.health = 9;
-        this.attackdamage = 3;
-        this.speed = 4;
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
         
     }
+    public override void InitializeStats()
+    {
+        this.health = 5;
+        this.attackdamage = 4;
+        this.speed = 7;
+    }
+
 
 }

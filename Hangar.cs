@@ -6,11 +6,13 @@ using UnityEngine;
 public class Hangar : MonoBehaviour
 {
     private Dictionary<string, GameObject> hangar;
-    private Dictionary<string, GameObject> fleet;
+    public Dictionary<string, GameObject> fleet;
+
+    public List<Ship> fleetDisplayList;
     // Start is called before the first frame update
     void Start()
     {
-        
+        fleetDisplayList = new List<Ship>();
     }
 
     public Dictionary<string, GameObject> GetFleet()
@@ -21,7 +23,14 @@ public class Hangar : MonoBehaviour
         }
         return fleet;
     }
-
+    public Dictionary<string, GameObject> GetHangar()
+    {
+        if (hangar == null)
+        {
+            hangar = new Dictionary<string, GameObject>();
+        }
+        return hangar;
+    }
     public List<GameObject> GetFleetList()
     {
         List<GameObject> _fleet = new List<GameObject>();
@@ -37,16 +46,24 @@ public class Hangar : MonoBehaviour
         return _fleet;
     }
 
-    public List<Ship> GetshipList()
+    public List<Ship> GetShipList()
     {
         List<Ship> shipfleet = new List<Ship>();
         Dictionary<string, GameObject> dictionary = GetFleet();
 
         for (int i = 0; i < GetFleet().Count; i++)
         {
-            Ship ship = dictionary.ElementAt(i).Value.GetComponent<Ship>();
+            if (dictionary.ElementAt(i).Value == null)
+            {
+                Debug.Log("ship was null");
+            }
+            else
+            {
+                Ship ship = dictionary.ElementAt(i).Value.GetComponent<Ship>();
 
-            shipfleet.Add(ship);
+                shipfleet.Add(ship);
+            }
+            
         }
 
         return shipfleet;
@@ -58,37 +75,48 @@ public class Hangar : MonoBehaviour
         {
             hangar = new Dictionary<string, GameObject>();
         }
-
-        hangar.Add(s.name, s);
-        print(s.name + "Added for: " + this);
+        
+        GameObject objectToAdd = GameObject.Instantiate(s);
+        objectToAdd.name = s.name;
+        DontDestroyOnLoad(objectToAdd);
+        objectToAdd.GetComponent<Ship>().hangar = this;
+        hangar.Add(objectToAdd.name, objectToAdd);
+        print(objectToAdd.name + "Added for: " + this);
     }
-
+   
     public void AddShipToFleet(GameObject s)
     {
         if (fleet == null)
         {
             fleet = new Dictionary<string, GameObject>();
         }
-
-        fleet.Add(s.name, s);
-        s.GetComponent<Ship>().SetHangar(this);
-    }
-
-
-    public void moveShipToFleet(GameObject s)
-    {
-        fleet.Add(s.name, s);
-        hangar.Remove(s.name);
-    }
-
-    public void moveShipToHangar(GameObject s)
-    {
-        hangar.Add(s.name, s);
-        fleet.Remove(s.name);
+    
+        if (fleet.ContainsKey(s.name))
+        {
+            print(s.name + " is already in fleet");
+        }
+        else
+        {
+            fleet.Add(s.name, s);
+            //fleetDisplayList.Add(s.GetComponent<Ship>());
+            s.GetComponent<Ship>().isOnActiveFleet = true;
+        }
+        
     }
 
     public void removeShipfromFleet(GameObject s)
     {
-        fleet.Remove(s.name);
+        if (fleet.ContainsKey(s.name))
+        {
+            fleet.Remove(s.name);
+            print(s.name + "was removed from fleet. fleet count is now " + fleet.Count.ToString());
+            s.GetComponent<Ship>().resetHealth();
+            s.GetComponent<Ship>().isOnActiveFleet = false;
+        }
+        else
+        {
+            print("");
+        }
+        
     }
 }

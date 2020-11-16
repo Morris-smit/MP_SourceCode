@@ -2,20 +2,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SupportClass : Ship
+public class AttackClass : Ship
 {
     // Start is called before the first frame update
     void Start()
     {
-        this.health = 7;
-        this.attackdamage = 4;
-        this.health = 6;
+
     }
 
-    // Update is called once per frame
-    void Update()
+    public override void InitializeStats()
     {
-        
+        this.health = 5;
+        this.attackdamage = 7;
+        this.speed = 6;
     }
 
 }

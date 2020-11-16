@@ -10,9 +10,4 @@ public class Earth : SuperScene
         
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }
