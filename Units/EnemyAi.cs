@@ -18,6 +18,9 @@ public class EnemyAi : Unit
 
     List<Ship> EnemySpeedList = new List<Ship>();
     List<Ship> EnemyDamageList = new List<Ship>();
+    List<Ship> EnemyHealthList = new List<Ship>();
+
+    Ship _shipToSelectFor;
 
 
     List<GameObject> possibleTargets = new List<GameObject>();
@@ -81,16 +84,17 @@ public class EnemyAi : Unit
 
         print("state selection for computer complete");
     }
-    public void targetSelection(List<Ship> alliedShips, List<Ship> enemyShips)
+    public void targetSelection(Ship shipToSelectFor, List<Ship> enemyShips)
     {
-        aShips = alliedShips;
-        List<Ship> attackingShips = checkAttack(alliedShips);
+        _shipToSelectFor = shipToSelectFor;
         attEnemyShips = checkAttack(enemyShips);
         defEnemyShips = checkDefence(enemyShips);
         healingEnemyShips = checkHeal(enemyShips);
 
+
         EnemySpeedList = GetListBasedOnSpeed(enemyShips);
         EnemyDamageList = GetListBasedOnDamage(enemyShips);
+        EnemyHealthList = GetListBasedOnSpeed(enemyShips);
 
         //get all the possible target ships
         List<GameObject> possibleTargets = new List<GameObject>();
@@ -98,36 +102,10 @@ public class EnemyAi : Unit
         {
             possibleTargets.Add(enemyShips[i].gameObject);
         }
-        for (int j = 0; j < attackingShips.Count; j++)
-        {
-            attackingShips[j].AddTargets(possibleTargets);
-        }
+        shipToSelectFor.AddTargets(possibleTargets);
 
 
-        for (int j = 0; j < alliedShips.Count; j++)
-        {
-            Ship ship = alliedShips[j];
-            if (ship is SwarmClass)
-            {
-                swarmships.Add(ship);
-            }
-            else if (ship is TankClass)
-            {
-                tankShips.Add(ship);
-            }
-            else if (ship is AttackClass)
-            {
-                attackShips.Add(ship);
-            }
-            else if (ship is SupportClass)
-            {
-                supportShips.Add(ship);
-            }
-            else
-            {
-                stealthShips.Add(ship);
-            }
-        }
+        
 
         if (this.strategy == EnemyAi.Strategy.offensive)
         {
@@ -165,154 +143,179 @@ public class EnemyAi : Unit
     }
     public void offensiveTargetSelection()
     {
-        List<Ship> attackingShips = checkAttack(aShips);
+        #region old code
+        ////if there is one defending enemy ship
+        //if (defEnemyShips.Count == 1)
+        //{
+        //    //if there is more than 1 allied ship on attack
+        //    //check if AI has enough damage to destroy the last attack ship and have an attack left
+        //    if (attackingShips.Count > 1)
+        //    {
+        //        if (healingEnemyShips.Count >= 1)
+        //        {
+        //            //make sure the AI checks if there is a healing ship present, if so account for its healing amoutn
+        //            //and check if the AI still has enough damage to kill the defending ship
+        //            Ship _HighestEnemyDamageShip = EnemyDamageList[0];
+        //            int enemyDefenceHealth = defEnemyShips[0].GetHealth() + healingEnemyShips[0].GetAttDamage();
+        //            if (attackingShips[0].GetAttDamage() >= enemyDefenceHealth)
+        //            {
+        //                attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //                attackingShips[1].SelectTargets(_HighestEnemyDamageShip.name);
+        //            }
 
-        
+        //            if (attackingShips[1].GetAttDamage() >= enemyDefenceHealth)
+        //            {
+        //                attackingShips[1].SelectTargets(defEnemyShips[0].name);
+        //                attackingShips[0].SelectTargets(_HighestEnemyDamageShip.name);
+        //            }
 
-        List<Ship> SpeedList = GetListBasedOnSpeed(aShips);
-        List<Ship> DamageList = GetListBasedOnDamage(aShips);
+        //            if (attackingShips[0].GetAttDamage() + attackingShips[1].GetAttDamage() >= enemyDefenceHealth)
+        //            {
+        //                attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //                attackingShips[1].SelectTargets(defEnemyShips[0].name);
+        //            }
+        //        }
+        //        Ship HighestEnemyDamageShip = EnemyDamageList[0];
+        //        //check if the AI has enough attacks to destroy the remaining defending ship
+        //        //and attack the remaining enemy attacking ship
+        //        if (attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth())
+        //        {
+        //            attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //            attackingShips[1].SelectTargets(HighestEnemyDamageShip.name);
+        //        }
+        //        if (attackingShips[1].GetAttDamage() >= defEnemyShips[0].GetHealth())
+        //        {
+        //            attackingShips[1].SelectTargets(defEnemyShips[0].name);
+        //            attackingShips[0].SelectTargets(HighestEnemyDamageShip.name);
+        //        }
+        //        //if the AI does not have enough attacks to do either of these then destroy the defending ship
+        //        else
+        //        {
+        //            attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //            attackingShips[1].SelectTargets(defEnemyShips[0].name);
+        //        }
+        //    }
+        //    //if the Ai has 1 remaining attacking ship
+        //    else
+        //    {
+        //        attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //    }
+        //}
+        ////if all the enemy ships are on defence target all of them
+        //if (defEnemyShips.Count == 3)
+        //{
+        //    for (int i = 0; i < DamageList.Count; i++)
+        //    {
+        //        Ship shipToSelectFor = DamageList[i];
 
+        //        shipToSelectFor.SelectTargets(defEnemyShips[i].name);
+        //    }
+        //}
 
-        if (defEnemyShips.Count > 0)
-        {
-            if (defEnemyShips.Count > 1)
-            {   
-                if (attackShips.Count > 1)   
-                {
-                    //check if the AI has enoug attacks to destroy both defending ships
-                    if(
-                        attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth() &&
-                        attackingShips[1].GetAttDamage() >= defEnemyShips[1].GetHealth()
-                    ){
-                        attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                        attackingShips[1].SelectTargets(defEnemyShips[1].name);
-                    }
-                    if(
-                        attackingShips[1].GetAttDamage() >= defEnemyShips[0].GetHealth() &&
-                        attackingShips[0].GetAttDamage() >= defEnemyShips[1].GetHealth()
-                    ){
-                        attackingShips[1].SelectTargets(defEnemyShips[0].name);
-                        attackingShips[0].SelectTargets(defEnemyShips[1].name);
-                    }
-                    //check if the ai can destroy atleast 1 ship and damage the other
-                    if(
-                        attackingShips[1].GetAttDamage() + attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth()
-                    ){
-                        attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                        attackingShips[1].SelectTargets(defEnemyShips[0].name);
-                    }
-                    else
-                    {
-                        attackingShips[0].SelectTargets(defEnemyShips[1].name);
-                        attackingShips[1].SelectTargets(defEnemyShips[1].name);
-                    }
-                }
-                //if there is 1 attacking ship left check if it can destroy a tank ship
-                else
-                {
-                    if (attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth())
-                    {
-                        attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                    }
-                    if (attackingShips[0].GetAttDamage() >= defEnemyShips[1].GetHealth())
-                    {
-                        attackingShips[0].SelectTargets(defEnemyShips[1].name);
-                    }
-                    //if the attacking ship cant destroy one of the defending ships 
-                    //find the defending ship with the lowest health and select that as a target for the last attacking ship
-                    else
-                    {
-                        
-                        Ship shipToAttack;
-                        if (defEnemyShips[0].GetHealth() > defEnemyShips[1].GetHealth())
-                        {
-                            shipToAttack = defEnemyShips[0];
-                        }
-                        else
-                        {
-                            shipToAttack = defEnemyShips[1];
-                        }
-                        attackingShips[0].SelectTargets(shipToAttack.name);
-                    }
-                }
-            }
-            //if there is one defending enemy ship
-            if (defEnemyShips.Count == 1)
-            {
-                //if there is more than 1 allied ship on attack
-                //check if AI has enough damage to destroy the last attack ship and have an attack left
-                if (attackingShips.Count > 1)
-                {
-                    if (healingEnemyShips.Count >= 1)
-                    {
-                        //make sure the AI checks if there is a healing ship present, if so account for its healing amoutn
-                        //and check if the AI still has enough damage to kill the defending ship
-                        Ship _HighestEnemyDamageShip = EnemyDamageList[0];
-                        int enemyDefenceHealth = defEnemyShips[0].GetHealth() + healingEnemyShips[0].GetAttDamage();
-                        if (attackingShips[0].GetAttDamage() >= enemyDefenceHealth)
-                        {
-                            attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                            attackingShips[1].SelectTargets(_HighestEnemyDamageShip.name);
-                        }
+        ////if there are 2 defending ships
+        //else
+        //{
+        //    if (attackShips.Count > 1)
+        //    {
+        //        //check if the AI has enough attacks to destroy both defending ships
+        //        if (
+        //            attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth() &&
+        //            attackingShips[1].GetAttDamage() >= defEnemyShips[1].GetHealth()
+        //        )
+        //        {
+        //            attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //            attackingShips[1].SelectTargets(defEnemyShips[1].name);
+        //        }
+        //        if (
+        //            attackingShips[1].GetAttDamage() >= defEnemyShips[0].GetHealth() &&
+        //            attackingShips[0].GetAttDamage() >= defEnemyShips[1].GetHealth()
+        //        )
+        //        {
+        //            attackingShips[1].SelectTargets(defEnemyShips[0].name);
+        //            attackingShips[0].SelectTargets(defEnemyShips[1].name);
+        //        }
+        //        //check if the ai can destroy atleast 1 ship and damage the other
+        //        if (
+        //            attackingShips[1].GetAttDamage() + attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth()
+        //        )
+        //        {
+        //            attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //            attackingShips[1].SelectTargets(defEnemyShips[0].name);
+        //        }
+        //        else
+        //        {
+        //            attackingShips[0].SelectTargets(defEnemyShips[1].name);
+        //            attackingShips[1].SelectTargets(defEnemyShips[1].name);
+        //        }
+        //    }
+        //    //if there is 1 attacking ship left check if it can destroy a tank ship
+        //    else
+        //    {
+        //        if (attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth())
+        //        {
+        //            attackingShips[0].SelectTargets(defEnemyShips[0].name);
+        //        }
+        //        if (attackingShips[0].GetAttDamage() >= defEnemyShips[1].GetHealth())
+        //        {
+        //            attackingShips[0].SelectTargets(defEnemyShips[1].name);
+        //        }
+        //        //if the attacking ship cant destroy one of the defending ships 
+        //        //find the defending ship with the lowest health and select that as a target for the last attacking ship
+        //        else
+        //        {
 
-                        if (attackingShips[1].GetAttDamage() >= enemyDefenceHealth)
-                        {
-                            attackingShips[1].SelectTargets(defEnemyShips[0].name);
-                            attackingShips[0].SelectTargets(_HighestEnemyDamageShip.name);
-                        }
+        //            Ship shipToAttack;
+        //            if (defEnemyShips[0].GetHealth() > defEnemyShips[1].GetHealth())
+        //            {
+        //                shipToAttack = defEnemyShips[0];
+        //            }
+        //            else
+        //            {
+        //                shipToAttack = defEnemyShips[1];
+        //            }
+        //            attackingShips[0].SelectTargets(shipToAttack.name);
+        //        }
+        //    }
+        //}
+        #endregion
 
-                        if (attackingShips[0].GetAttDamage() + attackingShips[1].GetAttDamage() >= enemyDefenceHealth)
-                        {
-                            attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                            attackingShips[1].SelectTargets(defEnemyShips[0].name);
-                        }
-                    }
-                    Ship HighestEnemyDamageShip = EnemyDamageList[0];
-                    //check if the AI has enough attacks to destroy the remaining defending ship
-                    //and attack the remaining enemy attacking ship
-                    if (attackingShips[0].GetAttDamage() >= defEnemyShips[0].GetHealth())
-                    {
-                        attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                        attackingShips[1].SelectTargets(HighestEnemyDamageShip.name);
-                    }
-                    if (attackingShips[1].GetAttDamage() >= defEnemyShips[0].GetHealth())
-                    {
-                        attackingShips[1].SelectTargets(defEnemyShips[0].name);
-                        attackingShips[0].SelectTargets(HighestEnemyDamageShip.name);
-                    }
-                    //if the AI does not have enough attacks to do either of these then destroy the defending ship
-                    else
-                    {
-                        attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                        attackingShips[1].SelectTargets(defEnemyShips[0].name);
-                    }
-                }
-                //if the Ai has 1 remaining attacking ship
-                else
-                {
-                    attackingShips[0].SelectTargets(defEnemyShips[0].name);
-                }
-            }
-        }
+        //more generic code
         //if there are no enemy defending ships
-        else
+        if (defEnemyShips.Count == 0)
         {
-            //make sure the Ai ship with the highest speed attacks the enemy ship with the highest damage
-            for (int i = 0; i < attackingShips.Count; i++)
+            //make sure the Ai ship attacks the enemy ship with the highest damage
+            for (int l = attEnemyShips.Count - 1; l >= 0; l--)
             {
-                Ship shipToSelectFor = SpeedList[i];
-                if (i > EnemyDamageList.Count - 1)
+                if (canDestroy(_shipToSelectFor, attEnemyShips[l]))
                 {
-                    shipToSelectFor.SelectTargets(EnemyDamageList[0].name);
+                    Ship shipToAttack = attEnemyShips[l];
+                    _shipToSelectFor.SelectTargets(shipToAttack.name);
+                    print(_shipToSelectFor.name + " selected" + shipToAttack.name + " as target");
+                    return;
                 }
                 else
                 {
-                    Ship shipToAttack = EnemyDamageList[i];
-                    shipToSelectFor.SelectTargets(shipToAttack.name);
-                    print(shipToSelectFor.name + " selected" + shipToAttack.name + " as target");
+                    _shipToSelectFor.SelectTargets(EnemyDamageList[0].name);
+                    print(_shipToSelectFor.name + " selected" + EnemyDamageList[0].name + " as target");
+                    return;
                 }
             }
         }
+
+        EnemyHealthList = GetListBasedOnHealth(defEnemyShips);
+        //if the Ai cannot destroy all defending ships make sure it damages the defending ship with the highest HP
+        for (int u = EnemyHealthList.Count - 1; u >= 0; u--)
+        {
+            //EnemyHealthList.Remove(EnemyHealthList[u]);
+            if (canDestroy(_shipToSelectFor, EnemyHealthList[u]))
+            {
+                _shipToSelectFor.SelectTargets(EnemyHealthList[u].name);
+                print(_shipToSelectFor.name + " selected" + EnemyHealthList[u].name + " as target");
+                return;
+            }
+        }
+        _shipToSelectFor.SelectTargets(EnemyHealthList[0].name);
+        print(_shipToSelectFor.name + " selected" + EnemyHealthList[0].name + " as target");
 
 
     }
@@ -337,6 +340,17 @@ public class EnemyAi : Unit
         supportShips.Clear();
         stealthShips.Clear();
     }
+    private bool canDestroy(Ship a, Ship t)
+    {
+        if (a.GetAttDamage() >= t.GetHealth() && a.GetSpeed() >= t.GetSpeed())
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
 
     List<Ship> checkAttack(List<Ship> s)
     {
@@ -344,7 +358,7 @@ public class EnemyAi : Unit
 
         for (int i = 0; i < s.Count; i++)
         {
-            if (s[i].state == Ship.State.attack)
+            if (s[i].state == Ship.State.attack || s[i].state == Ship.State.heal)
             {
                 list.Add(s[i]);
             }
@@ -388,7 +402,13 @@ public class EnemyAi : Unit
     }
     private List<Ship> GetListBasedOnDamage(List<Ship> list)
     {
-        list.OrderByDescending(ship => ship.GetHealth());
+        list.OrderByDescending(ship => ship.GetAttDamage());
         return list;
     }
+    private List<Ship> GetListBasedOnHealth(List<Ship> list)
+    {
+        list.OrderBy(ship => ship.GetHealth());
+        return list;
+    }
+
 }

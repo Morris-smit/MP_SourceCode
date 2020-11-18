@@ -176,21 +176,21 @@ public class Ship : MonoBehaviour
     {
         Ship _ship = this;
 
-        if (!hasDied())
+        if (hasDied() == false)
         {
+            print(this.name + "'s dead level is: " + this.hasDied());
             foreach (string t in selectedTargets)
             {
-                //Debug.Log(Targets[t].name);
                 Ship tship = PossibleTargets[t].GetComponent<Ship>();
 
-                if (!tship.hasDied())
+                if (tship.hasDied())
                 {
-                    print(this.name + " Attacked " + PossibleTargets[t]);
-                    tship.takeDamage(this.attackdamage);
+                    print(this.name + " tried attacking while it is dead");
                 }
                 else
                 {
-                    print(this.name + " tried attacking while it is dead");
+                    print(this.name + " Attacked " + PossibleTargets[t]);
+                    tship.takeDamage(this.attackdamage);
                 }
             }
         }
@@ -209,7 +209,7 @@ public class Ship : MonoBehaviour
 
     public void DIE()
     {
-        if (this.isOnActiveFleet)
+        if (isOnActiveFleet)
         {
             hangar.removeShipfromFleet(this.gameObject);
         }
@@ -282,6 +282,7 @@ public class Ship : MonoBehaviour
     }
     public void increaseHealth(int amount)
     {
+        this.totalHealth += amount;
         this.health += amount;
     }
     public void increaseDamage(int amount)

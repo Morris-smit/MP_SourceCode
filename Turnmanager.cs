@@ -272,7 +272,7 @@ public class Turnmanager : MonoBehaviour
             //random computer selection
             if (isComputerShip)
             {
-                computer.targetSelection(computer.hangar.GetShipList(), playerHangar.GetShipList());
+                computer.targetSelection(_ship, playerHangar.GetShipList());
             }
             //the logic for activating and deactivating the buttons for each targetable ship
             else
@@ -351,9 +351,13 @@ public class Turnmanager : MonoBehaviour
             }
             else
             {
-                for (int j = 0; j < _ship.GetTargets().Count; j++)
+                for (int j = 0; j < _ship.GetSelectedTargets().Count; j++)
                 {
-                    Ship targetShip = _ship.GetTargets().ElementAt(j).Value.GetComponent<Ship>();
+                    string shipName = _ship.GetSelectedTargets()[j];
+
+                    Ship targetShip = _ship.GetTargets()[shipName].GetComponent<Ship>();
+
+
                     if (targetShip.hasDied())
                     {
                         targetShip.DIE();
@@ -376,8 +380,11 @@ public class Turnmanager : MonoBehaviour
 
                         print(_ship.name + "'s target died reselecting target");
                         StartCoroutine(SelectTarget(_ship, isComputerShip, true));
-
-                        yield return new WaitForSeconds(1);
+                        while (_ship.GetSelectedTargets().Count < 1)
+                        {
+                            yield return null;
+                        }
+                        
                     }
                 }
             }
@@ -432,6 +439,13 @@ public class Turnmanager : MonoBehaviour
         text.text = "you won!";
         PersistantDataManager.Instance.previousGameWinner = PersistantDataManager.PreviousGameWinner.player;
 
+
+        for (int i = 0; i < playerHangar.GetHangar().Count; i++)
+        {
+            Ship ship = playerHangar.GetHangar().ElementAt(i).Value.GetComponent<Ship>();
+            ship.resetHealth();
+        }
+
         yield return new WaitForSeconds(2);
 
         SCM.GoToScene("GalaxyMap");
@@ -446,6 +460,12 @@ public class Turnmanager : MonoBehaviour
         print("Computer Won!");
         text.text = "you lost";
         PersistantDataManager.Instance.previousGameWinner = PersistantDataManager.PreviousGameWinner.enemyAI;
+
+        for (int i = 0; i < playerHangar.GetHangar().Count; i++)
+        {
+            Ship ship = playerHangar.GetHangar().ElementAt(i).Value.GetComponent<Ship>();
+            ship.resetHealth();
+        }
 
         yield return new WaitForSeconds(2);
 

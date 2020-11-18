@@ -98,8 +98,9 @@ public class SuperScene : MonoBehaviour
             cShipList[i].gameObject.transform.position = CShipPos[i].position;
             cShipList[i].gameObject.transform.rotation = CShipPos[i].rotation;
 
-            GameObject ship = cShipList[i];
-            ship.GetComponent<Ship>().Side = 2;   
+            Ship ship = cShipList[i].GetComponent<Ship>();
+            ship.Side = 2;
+            ship.hangar = enemyAI.hangar;
         }
     }
 

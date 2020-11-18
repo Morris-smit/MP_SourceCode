@@ -110,7 +110,7 @@ public class Hangar : MonoBehaviour
         {
             fleet.Remove(s.name);
             print(s.name + "was removed from fleet. fleet count is now " + fleet.Count.ToString());
-            s.GetComponent<Ship>().resetHealth();
+            //s.GetComponent<Ship>().resetHealth();
             s.GetComponent<Ship>().isOnActiveFleet = false;
         }
         else
